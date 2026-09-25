@@ -1,13 +1,13 @@
-# .devcontainer/devcontainer.json
-
 {
   "build": {
     "context": "..",
     "dockerfile": "Dockerfile"
   },
-  "postCreateCommand": "scripts/setup",
+  "postCreateCommand": "bash scripts/setup",
   "features": {
-    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {
+      "moby": false
+    }
   },
   "forwardPorts": [
     "22111",
