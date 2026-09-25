@@ -6,7 +6,7 @@ python = "3.13"
 uv = "latest"
 
 [settings]
-python.uv_venv_auto = true
+python.uv_venv_auto = "create|source"
 idiomatic_version_file_enable_tools = ["python"]
 experimental = true
 
