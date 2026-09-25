@@ -42,3 +42,15 @@ The process keeps no timer state in memory, so restarts preserve active timers
 and session history. SQLite is a local file backing service: deploy it with a
 persistent volume on one host, and use a network database before scaling across
 hosts.
+
+### Container
+
+Trivy is managed by mise. Run `mise install` if it is not installed, then build
+and scan the image from the repository root:
+
+    docker build -t backend:00 -f src/backend/Dockerfile src/backend
+    TAG=00 && trivy image --format table --severity CRITICAL,HIGH backend:$TAG
+
+Run with a named volume so the SQLite database survives container removal:
+
+    docker run --rm -p 8000:8000 -v pomodoro-data:/app/data backend:00
