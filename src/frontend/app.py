@@ -16,7 +16,9 @@ class BackendError(Exception):
     pass
 
 
-def api_request(path: str, method: str = "GET", payload: dict | None = None) -> dict | list:
+def api_request(
+    path: str, method: str = "GET", payload: dict | None = None
+) -> dict | list:
     body = json.dumps(payload).encode() if payload is not None else None
     headers = {"Content-Type": "application/json"} if body is not None else {}
     request = Request(f"{BACKEND_URL}{path}", data=body, headers=headers, method=method)
@@ -31,7 +33,9 @@ def api_request(path: str, method: str = "GET", payload: dict | None = None) -> 
         raise BackendError(detail or f"Backend returned HTTP {error.code}") from error
     except (URLError, TimeoutError) as error:
         reason = getattr(error, "reason", error)
-        raise BackendError(f"Cannot reach the backend at {BACKEND_URL}: {reason}") from error
+        raise BackendError(
+            f"Cannot reach the backend at {BACKEND_URL}: {reason}"
+        ) from error
 
 
 def remaining_seconds(timer: dict) -> int:
@@ -95,7 +99,10 @@ def show_timer() -> None:
         st.rerun()
 
     remaining = remaining_seconds(current)
-    st.metric("Time remaining", format_time(remaining) if current["status"] != "idle" else "--:--")
+    st.metric(
+        "Time remaining",
+        format_time(remaining) if current["status"] != "idle" else "--:--",
+    )
     if current["status"] != "idle":
         st.caption(f"{LABELS[current['kind']]} · {current['status'].capitalize()}")
         if current["duration_seconds"]:
@@ -108,7 +115,9 @@ def show_timer() -> None:
 show_timer()
 
 if timer["status"] == "idle":
-    if st.button(f"Start {LABELS[selected_kind]}", type="primary", use_container_width=True):
+    if st.button(
+        f"Start {LABELS[selected_kind]}", type="primary", use_container_width=True
+    ):
         perform_action("/api/timer/start", {"kind": selected_kind})
 else:
     action, stop = st.columns(2)
