@@ -1,11 +1,11 @@
 import json
-import math
 import os
-from datetime import UTC, datetime
+from datetime import datetime
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 import streamlit as st
+from timer_utils import format_time, remaining_seconds
 
 BACKEND_URL = os.environ.get("BACKEND_URL", "http://127.0.0.1:8000").rstrip("/")
 KINDS = ("focus", "short_break", "long_break")
@@ -36,18 +36,6 @@ def api_request(
         raise BackendError(
             f"Cannot reach the backend at {BACKEND_URL}: {reason}"
         ) from error
-
-
-def remaining_seconds(timer: dict) -> int:
-    if timer["status"] == "running" and timer["ends_at"]:
-        ends_at = datetime.fromisoformat(timer["ends_at"])
-        return max(0, math.ceil((ends_at - datetime.now(UTC)).total_seconds()))
-    return timer["remaining_seconds"]
-
-
-def format_time(seconds: int) -> str:
-    minutes, seconds = divmod(seconds, 60)
-    return f"{minutes:02}:{seconds:02}"
 
 
 def perform_action(path: str, payload: dict | None = None) -> None:
