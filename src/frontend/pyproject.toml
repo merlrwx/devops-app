@@ -14,8 +14,10 @@ dependencies = [
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
+addopts = ["--cov=timer_utils", "--cov-report=term-missing"]
 
 [dependency-groups]
 dev = [
     "pytest>=9.1.1",
+    "pytest-cov>=7.1.0",
 ]

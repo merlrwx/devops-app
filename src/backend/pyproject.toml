@@ -13,6 +13,7 @@ dependencies = [
 
 [tool.pytest.ini_options]
 asyncio_default_fixture_loop_scope = "function"
+addopts = ["--cov=backend", "--cov-report=term-missing"]
 
 [project.scripts]
 study-tracker-api = "backend.main:main"
@@ -29,4 +30,5 @@ dev = [
     "httpx2>=2.13.1",
     "pytest>=9.1.1",
     "pytest-asyncio>=1.4.0",
+    "pytest-cov>=7.1.0",
 ]
