@@ -142,29 +142,20 @@ The 2026-09-27 scan found the same three Python-package advisories in both image
 
 ### Run the images
 
-Create a Docker network so the frontend can reach the backend by container name:
+From the repository root, Compose builds and starts both services on a shared network. It waits for the API health check before starting the frontend and keeps SQLite data in a named volume:
 
 ```sh
-docker network create study-tracker
-docker volume create study-tracker-data
-docker run -d --name study-tracker-backend --network study-tracker \
-  -p 8000:8000 -v study-tracker-data:/app/data \
-  devops-app-backend:alpine
-
-curl -fsS http://localhost:8000/health
+docker compose up --build
 ```
 
-In another terminal, start the frontend:
+Open <http://localhost:8501> for the frontend or <http://localhost:8000/health> for the API health check. Stop the services with Ctrl-C, or run:
 
 ```sh
-docker run --rm --name study-tracker-frontend --network study-tracker \
-  -p 8501:8501 -e BACKEND_URL=http://study-tracker-backend:8000 \
-  devops-app-frontend:alpine
+docker compose down
 ```
 
-Open <http://localhost:8501>. Stop and remove the backend and network when finished:
+The backend database volume remains after `docker compose down`. Remove it only when you also want to delete stored sessions:
 
 ```sh
-docker rm -f study-tracker-backend
-docker network rm study-tracker
+docker compose down --volumes
 ```
