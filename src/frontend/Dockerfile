@@ -25,9 +25,10 @@ FROM python:3.13.15-alpine3.24
 # Create a non-root user and group with specific IDs
 RUN addgroup -S -g 1000 app && adduser -S -u 1000 -G app app
 
-# Copy the environment and app entrypoint
+# Copy the environment and application files
 COPY --from=builder --chown=app:app /app/.venv /app/.venv
 COPY --chown=app:app app.py /app/app.py
+COPY --chown=app:app timer_utils.py /app/timer_utils.py
 
 # Run the application
 WORKDIR /app
