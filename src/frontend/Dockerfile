@@ -22,17 +22,15 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 FROM python:3.13.15-alpine3.24
 
-# Create an unprivileged user and writable application data directory
-RUN addgroup -S app && adduser -S -G app app \
-  && mkdir -p /app/data \
-  && chown app:app /app/data
+# Create an unprivileged user
+RUN addgroup -S app && adduser -S -G app app
 
-# Copy the environment, but not the source code
+# Copy the environment and app entrypoint
 COPY --from=builder --chown=app:app /app/.venv /app/.venv
-
-WORKDIR /app
-USER app
-EXPOSE 8000
+COPY --chown=app:app app.py /app/app.py
 
 # Run the application
-CMD ["/app/.venv/bin/study-tracker-api"]
+WORKDIR /app
+USER app
+EXPOSE 8501
+CMD ["/app/.venv/bin/streamlit", "run", "--server.address", "0.0.0.0", "/app/app.py"]
