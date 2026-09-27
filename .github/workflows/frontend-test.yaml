@@ -1,0 +1,39 @@
+name: Frontend Tests
+
+on:
+  pull_request:
+    paths:
+      - "src/frontend/**"
+      - ".github/workflows/frontend-test.yaml"
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: Frontend checks
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: src/frontend
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7.0.1
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v10.2.0
+        with:
+          version: 0.12.19
+
+      - name: Install Python
+        run: uv python install 3.13.15
+
+      - name: Install locked dependencies
+        run: uv sync --locked
+
+      - name: Lint with Ruff
+        run: uv run --locked ruff check --output-format=github .
+
+      - name: Check formatting with Ruff
+        run: uv run --locked ruff format --diff --check .
