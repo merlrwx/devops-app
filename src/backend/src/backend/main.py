@@ -3,7 +3,7 @@ import os
 import sqlite3
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager, contextmanager
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Literal
 
@@ -98,7 +98,7 @@ def current_timer(connection: sqlite3.Connection) -> TimerResponse:
     row = connection.execute("SELECT * FROM timer_state WHERE id = 1").fetchone()
     if row["status"] == "running":
         end = datetime.fromisoformat(row["ends_at"])
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         remaining = max(0, math.ceil((end - now).total_seconds()))
         if remaining == 0:
             connection.execute(
@@ -189,7 +189,7 @@ def start_timer(payload: TimerStart | None = None) -> TimerResponse:
         if current_timer(connection).status != "idle":
             raise HTTPException(status_code=409, detail="A timer is already active")
         duration = payload.duration_seconds or DEFAULT_DURATIONS[payload.kind]
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         end = now + timedelta(seconds=duration)
         connection.execute(
             """
@@ -226,7 +226,7 @@ def resume_timer() -> TimerResponse:
         timer = current_timer(connection)
         if timer.status != "paused":
             raise HTTPException(status_code=409, detail="No paused timer to resume")
-        end = datetime.now(timezone.utc) + timedelta(seconds=timer.remaining_seconds)
+        end = datetime.now(UTC) + timedelta(seconds=timer.remaining_seconds)
         connection.execute(
             """
             UPDATE timer_state

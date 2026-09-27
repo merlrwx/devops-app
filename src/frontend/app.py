@@ -1,7 +1,7 @@
 import json
 import math
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -41,7 +41,7 @@ def api_request(
 def remaining_seconds(timer: dict) -> int:
     if timer["status"] == "running" and timer["ends_at"]:
         ends_at = datetime.fromisoformat(timer["ends_at"])
-        return max(0, math.ceil((ends_at - datetime.now(timezone.utc)).total_seconds()))
+        return max(0, math.ceil((ends_at - datetime.now(UTC)).total_seconds()))
     return timer["remaining_seconds"]
 
 

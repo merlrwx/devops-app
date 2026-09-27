@@ -8,5 +8,6 @@ authors = [
 ]
 requires-python = ">=3.13"
 dependencies = [
+    "ruff>=0.16.9",
     "streamlit>=1.37.0",
 ]
