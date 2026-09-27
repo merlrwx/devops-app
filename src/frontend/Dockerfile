@@ -22,8 +22,8 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 FROM python:3.13.15-alpine3.24
 
-# Create an unprivileged user
-RUN addgroup -S app && adduser -S -G app app
+# Create a non-root user and group with specific IDs
+RUN addgroup -S -g 1000 app && adduser -S -u 1000 -G app app
 
 # Copy the environment and app entrypoint
 COPY --from=builder --chown=app:app /app/.venv /app/.venv
