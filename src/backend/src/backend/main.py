@@ -1,10 +1,11 @@
-from contextlib import asynccontextmanager, contextmanager
-from datetime import datetime, timedelta, timezone
 import math
 import os
-from pathlib import Path
 import sqlite3
-from typing import AsyncIterator, Literal
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager, contextmanager
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from typing import Literal
 
 import uvicorn
 from fastapi import FastAPI, HTTPException, Query
@@ -105,7 +106,12 @@ def current_timer(connection: sqlite3.Connection) -> TimerResponse:
                 INSERT INTO sessions (kind, started_at, completed_at, duration_seconds)
                 VALUES (?, ?, ?, ?)
                 """,
-                (row["kind"], row["started_at"], row["ends_at"], row["duration_seconds"]),
+                (
+                    row["kind"],
+                    row["started_at"],
+                    row["ends_at"],
+                    row["duration_seconds"],
+                ),
             )
             set_idle(connection)
             return idle_timer()
@@ -242,7 +248,9 @@ def stop_timer() -> TimerResponse:
 
 
 @app.get("/api/sessions", response_model=list[SessionResponse])
-def list_sessions(limit: int = Query(default=50, ge=1, le=200)) -> list[SessionResponse]:
+def list_sessions(
+    limit: int = Query(default=50, ge=1, le=200),
+) -> list[SessionResponse]:
     with database() as connection:
         rows = connection.execute(
             """
