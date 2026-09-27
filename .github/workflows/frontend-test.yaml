@@ -2,18 +2,34 @@ name: Frontend Tests
 
 on:
   pull_request:
-    paths:
-      - "src/frontend/**"
-      - ".github/workflows/frontend-test.yaml"
-      - ".pre-commit-config.yaml"
 
 permissions:
   contents: read
   pull-requests: write
 
 jobs:
+  check_paths:
+    runs-on: ubuntu-24.04
+    outputs:
+      should_run: ${{ steps.filter.outputs.frontend }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7.0.1
+
+      - name: Filter frontend paths
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        id: filter
+        with:
+          filters: |
+            frontend:
+              - 'src/frontend/**'
+              - '.github/workflows/frontend-test.yaml'
+              - '.pre-commit-config.yaml'
+
   checks:
     name: Frontend checks
+    needs: check_paths
+    if: needs.check_paths.outputs.should_run == 'true'
     runs-on: ubuntu-24.04
     defaults:
       run:
