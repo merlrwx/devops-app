@@ -2,6 +2,10 @@
 
 Study tracker with a FastAPI backend and a Streamlit frontend.
 
+## CI workflow design
+
+This repository has one frontend and one backend, so their GitHub Actions workflows are kept explicit in the repository rather than abstracted into templates. Reusable workflow templates would make sense if 100+ applications were running similar pipelines, where shared definitions would reduce repeated maintenance.
+
 ## Development environment
 
 Start and connect to the DevPod workspace from the repository root:
