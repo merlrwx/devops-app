@@ -7,7 +7,6 @@ authors = [{ name = "Jason Standen", email = "jason@merl.one" }]
 requires-python = ">=3.13"
 dependencies = [
     "fastapi>=0.141.1",
-    "ruff>=0.16.9",
     "uvicorn>=0.53.0",
 ]
 
@@ -30,4 +29,5 @@ dev = [
     "pytest>=9.1.1",
     "pytest-asyncio>=1.4.0",
     "pytest-cov>=7.1.0",
+    "ruff>=0.16.9",
 ]

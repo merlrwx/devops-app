@@ -64,3 +64,18 @@ jobs:
 
       - name: Run pre-commit checks
         run: cd ../.. && uvx --from pre-commit==4.6.2 pre-commit run --all-files
+
+      - name: Build frontend image
+        run: docker build --progress=plain --tag devops-app-frontend:alpine .
+
+      - name: Scan frontend image
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: devops-app-frontend:alpine
+          version: v0.74.0
+          format: table
+          exit-code: "0"
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: CRITICAL,HIGH
+          cache: true
