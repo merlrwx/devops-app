@@ -25,3 +25,7 @@ enter = "bash ./scripts/setup_project"
 [tasks.k8s-setup-local]
 description = "Set up a basic Kubernetes cluster for development that builds the local images and applies them"
 run = "bash ./kubernetes/setup_cluster_local"
+
+[tasks.k8s-setup-minimal]
+description = "Set up a minimal local Kubernetes cluster without deploying workloads"
+run = "bash ./kubernetes/setup_cluster_minimal"
