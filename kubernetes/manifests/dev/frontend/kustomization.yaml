@@ -9,7 +9,7 @@ patches:
   - target:
       kind: Deployment
       name: frontend
-      namespace: study-app
+      namespace: devops-app
     patch: |-
       - op: replace
         path: /spec/template/spec/containers/0/env

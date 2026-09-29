@@ -6,7 +6,7 @@ resources:
   - backend
   - frontend
 
-namespace: study-app
+namespace: devops-app
 namePrefix: dev-
 
 images:
