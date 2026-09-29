@@ -1,165 +1,134 @@
 # DevOps App
 
-Study tracker with a FastAPI backend and a Streamlit frontend.
+A study tracker built with a FastAPI API and Streamlit UI. This repository documents the path from local development through containers, CI/CD, Kubernetes, and Flux GitOps.
 
-## CI workflow design
+## Developer Quickstart
 
-This repository has one frontend and one backend, so their GitHub Actions workflows are kept explicit in the repository rather than abstracted into templates. Reusable workflow templates would make sense if 100+ applications were running similar pipelines, where shared definitions would reduce repeated maintenance.
+### Prerequisites
 
-## Development environment
+- Git, Docker with Compose, and [mise](https://mise.jdx.dev/)
+- Optional: [DevPod](https://devpod.sh/) for the configured development container
 
-Start and connect to the DevPod workspace from the repository root:
+Install the repository tools and sync both Python projects:
 
 ```sh
-devpod up .
-devpod ssh
+mise install
+uv sync --locked --no-editable --project src/backend
+uv sync --locked --no-editable --project src/frontend
 ```
 
-Initial backend project setup (already applied):
+Run the API and UI in separate terminals from the repository root:
+
+```sh
+cd src/backend && uv run study-tracker-api
+```
+
+```sh
+cd src/frontend && BACKEND_URL=http://127.0.0.1:8000 \
+  uv run streamlit run --server.address 0.0.0.0 app.py
+```
+
+Open <http://localhost:8501>; the API health endpoint is <http://localhost:8000/health>.
+
+Run the test suites, coverage checks, and hooks:
+
+```sh
+(cd src/backend && uv run --locked pytest tests/ -v --cov=backend --cov-fail-under=80)
+(cd src/frontend && uv run --locked pytest tests/ -v --cov=timer_utils --cov-fail-under=80)
+pre-commit run --all-files
+```
+
+Or run both services with Compose:
+
+```sh
+docker compose up --build
+docker compose down
+```
+
+Compose stores SQLite data in a named volume. To delete it too, run `docker compose down --volumes`.
+
+To use the DevPod environment, run `devpod up .` then `devpod ssh`. Its setup script trusts `mise.toml` and installs the pinned tools.
+
+## Project build path
+
+### Module 1 — Introduction
+
+The project is a small, practical study tracker used to build a DevOps workflow around a real application. Start with Git, Python, Docker, GitHub Actions, and Kubernetes basics.
+
+### Module 2 — Development environment
+
+`mise.toml` pins the development tools and exposes common Kubernetes tasks. The DevContainer runs `scripts/setup`; `scripts/setup_project` configures Git, Commitizen, and pre-commit hooks.
+
+```sh
+mise install
+pre-commit install
+pre-commit install --hook-type commit-msg
+cz commit
+```
+
+Conventional Commit messages are checked locally and in CI. Commitizen and pre-commit are installed automatically by the DevPod project setup.
+
+### Module 3 — Python projects
+
+`src/backend` and `src/frontend` are independent uv projects, each with its own `pyproject.toml`, lockfile, tests, and package code. The backend is FastAPI with SQLite; the frontend is Streamlit.
+
+The backend project was initialized as a package and its dependencies managed with uv:
 
 ```sh
 cd src/backend
 uv init --package backend
-uv add fastapi
-```
-
-The backend and frontend are separate uv projects. In separate terminals:
-
-```sh
-cd src/backend
-uv sync --locked --no-editable
+uv add fastapi uvicorn
 uv run study-tracker-api
 ```
 
+The frontend follows the same workflow. To add a dependency, use `uv add <package>` in the relevant project directory, then commit the updated lockfile. The existing frontend can be run with:
+
 ```sh
 cd src/frontend
-uv sync --locked --no-editable
-BACKEND_URL=http://127.0.0.1:8000 uv run streamlit run --server.address 0.0.0.0 app.py
+uv run streamlit run --server.address 0.0.0.0 app.py
 ```
 
-The API listens on port 8000 and Streamlit on port 8501.
+The frontend exercise is to create the second uv project and connect it to the API; its implementation lives in `src/frontend`.
 
-## Container image exercise
+### Module 4 — Containers
 
-Build the backend and frontend separately. Run these commands from the repository root; each build context is its service directory.
-
-### 1. Build the `python:latest` baseline
-
-For the baseline exercise, use a single-stage Dockerfile with `FROM python:latest`, install uv, copy the service files, run `uv sync`, and keep that service's application `CMD`. Build and inspect each image:
+The container exercise starts with a simple Python entry point, then packages each uv project. The checked-in Dockerfiles use pinned Alpine and uv versions, multi-stage builds, BuildKit cache mounts, and a non-root runtime user.
 
 ```sh
-docker build --progress=plain \
-  -t devops-app-backend:python-latest \
-  -f src/backend/Dockerfile src/backend
-
-docker build --progress=plain \
-  -t devops-app-frontend:python-latest \
-  -f src/frontend/Dockerfile src/frontend
-
-docker image inspect --format '{{.RepoTags}} {{.Size}} bytes' \
-  devops-app-backend:python-latest devops-app-frontend:python-latest
-
-docker history --no-trunc devops-app-backend:python-latest
-docker history --no-trunc devops-app-frontend:python-latest
-
-mise exec trivy@0.74.0 -- trivy image --scanners vuln devops-app-backend:python-latest
-mise exec trivy@0.74.0 -- trivy image --scanners vuln devops-app-frontend:python-latest
+docker build -t devops-app-api:local -f src/backend/Dockerfile src/backend
+docker build -t devops-app-web:local -f src/frontend/Dockerfile src/frontend
+trivy image --scanners vuln devops-app-api:local
+trivy image --scanners vuln devops-app-web:local
 ```
 
-`docker history` shows the image's layers and their sizes. Each `RUN`, `COPY`, and `ADD` instruction in a single-stage Dockerfile adds a layer. Trivy findings depend on the vulnerability database version and change over time.
+The image exercise compares Python base images, inspects image layers and size, scans with Trivy, then reduces build artifacts and runtime privileges. The frontend image solution is in `src/frontend/Dockerfile`.
 
-### 2. Compare slim and Alpine bases
+### Module 5 — CI/CD with GitHub Actions
 
-Repeat the build, size, layer, and Trivy commands after changing the Python base image in each Dockerfile. Give each iteration a different tag so the images can be compared side by side:
+Pull requests run Ruff/pre-commit, backend and frontend tests with an 80% coverage threshold, container builds, and Trivy scans. Separate workflows keep the two service pipelines readable; path filters avoid running unrelated checks. Docker Compose remains the local integration path.
 
-| Iteration | Python base | Example image tags |
-| --- | --- | --- |
-| Baseline | `python:latest` | `devops-app-backend:python-latest`, `devops-app-frontend:python-latest` |
-| Slim | `python:3.13.15-slim` | `devops-app-backend:slim`, `devops-app-frontend:slim` |
-| Alpine | `python:3.13.15-alpine3.24` | `devops-app-backend:alpine`, `devops-app-frontend:alpine` |
+Release Please manages independent backend and frontend versions. Release tags build and publish `ghcr.io/<owner>/devops-app-api` and `ghcr.io/<owner>/devops-app-web`, then call the reusable GitOps update workflow. Development image tags update directly; production image updates are proposed as pull requests.
 
-For each iteration, replace the image tag in the build commands and in both Python `FROM` lines if the Dockerfile has builder and runtime stages. Then repeat `docker image inspect`, `docker history`, and both `trivy image` commands with the new tags.
+For repository setup, allow GitHub Actions to create pull requests and configure the required `DEVOPS_STUDY_APP` and `GITOPS_DEPLOY_KEY` secrets. The publishing workflows also need package write permission. Trivy scan steps currently report findings without failing the build.
 
-Alpine uses musl instead of glibc. Confirm that every Python dependency has a compatible wheel and run the image before choosing it. The frontend includes large scientific packages, so its total image size will remain larger than the backend image.
+### Module 6 — Kubernetes and Flux
 
-### 3. Use a multi-stage build
-
-The service Dockerfiles use a builder stage to install dependencies and build the project. The runtime stage starts from the same pinned Python image and copies only the virtual environment and files needed to run the service. This keeps build tools and intermediate files out of the final image.
-
-Backend runtime command:
-
-```dockerfile
-CMD ["/app/.venv/bin/study-tracker-api"]
-```
-
-Frontend runtime command:
-
-```dockerfile
-CMD ["/app/.venv/bin/streamlit", "run", "--server.address", "0.0.0.0", "/app/app.py"]
-```
-
-The build, size inspection, layer inspection, and scan steps are the same for both services; each image uses its own runtime command.
-
-### 4. Cache uv downloads during builds
-
-Both Dockerfiles mount the uv cache for dependency installation and bind `uv.lock` plus `pyproject.toml` before copying the source. This lets BuildKit reuse dependency downloads and the dependency layer when only application code changes. The `--progress=plain` build commands above show whether the layer was cached.
-
-### Build the current images
-
-The checked-in Dockerfiles use pinned Alpine and uv versions, multi-stage builds, cache mounts, and a non-root runtime user with UID/GID 1000.
+The `kubernetes/` directory contains app manifests and the Python end-to-end test. k3d runs a local cluster, imports the built images, and exercises the API and frontend. The end-to-end workflow runs in GitHub Actions on relevant changes.
 
 ```sh
-docker build --progress=plain \
-  -t devops-app-backend:alpine \
-  -f src/backend/Dockerfile src/backend
-
-docker build --progress=plain \
-  -t devops-app-frontend:alpine \
-  -f src/frontend/Dockerfile src/frontend
+mise run k8s-setup-minimal
+mise run k8s-setup-local
+mise run e2e-test
 ```
 
-Inspect final image sizes and layers:
+The minimal cluster task creates a clean cluster; the local setup task builds and deploys the app. The E2E task creates a test cluster, verifies both services, and cleans up on success. Run `uv run --locked --project ./kubernetes python ./kubernetes/e2e_test.py --no-cleanup` to keep the cluster when diagnosing a failed run.
+
+The GitOps repository is bootstrapped with Flux and separates reusable app manifests from environment overlays: `apps/base`, `apps/dev`, and `apps/prod`, with the development cluster entry under `clusters/dev`. Prepare a deploy key and bootstrap Flux with:
 
 ```sh
-docker image inspect --format '{{.RepoTags}} {{.Size}} bytes' \
-  devops-app-backend:alpine devops-app-frontend:alpine
-
-docker history --no-trunc devops-app-backend:alpine
-docker history --no-trunc devops-app-frontend:alpine
+bash scripts/setup_deploy_key --visibility private
+mise run setup-gitops
+mise run setup-cluster-gitops
 ```
 
-The images built for this exercise were 20,335,941 bytes for the backend and 133,275,615 bytes for the frontend. Rebuild and inspect after each base-image or Dockerfile change to compare your results.
-
-Scan both images with Trivy after building them:
-
-```sh
-mise exec trivy@0.74.0 -- trivy version
-
-mise exec trivy@0.74.0 -- trivy image --scanners vuln --format json \
-  --output /tmp/devops-app-backend-trivy.json devops-app-backend:alpine
-
-mise exec trivy@0.74.0 -- trivy image --scanners vuln --format json \
-  --output /tmp/devops-app-frontend-trivy.json devops-app-frontend:alpine
-```
-
-The 2026-09-27 scan found the same three Python-package advisories in both images: two HIGH and one MEDIUM. Findings were for `msgpack` (`GHSA-6v7p-g79w-8964`) and `setuptools` (`CVE-2025-47273`, `CVE-2026-59890`). Rerun the commands for current results.
-
-### Run the images
-
-From the repository root, Compose builds and starts both services on a shared network. It waits for the API health check before starting the frontend and keeps SQLite data in a named volume:
-
-```sh
-docker compose up --build
-```
-
-Open <http://localhost:8501> for the frontend or <http://localhost:8000/health> for the API health check. Stop the services with Ctrl-C, or run:
-
-```sh
-docker compose down
-```
-
-The backend database volume remains after `docker compose down`. Remove it only when you also want to delete stored sessions:
-
-```sh
-docker compose down --volumes
-```
+`setup_deploy_key` creates the GitHub GitOps repository if needed and adds its deploy key. The GitHub Actions release workflow then updates the development overlay and opens a production image update PR. A production cluster entry can be added when production Flux reconciliation is ready.
