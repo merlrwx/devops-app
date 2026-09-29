@@ -11,8 +11,8 @@ import requests
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 KUBERNETES_DIR = Path(__file__).resolve().parent
-CLUSTER_NAME = "study-app-cluster"
-NAMESPACE = "study-app"
+CLUSTER_NAME = "devops-app-cluster"
+NAMESPACE = "devops-app"
 SERVICES = ("dev-backend", "dev-frontend")
 DEFAULT_DURATIONS = {"focus": 25 * 60, "short_break": 5 * 60, "long_break": 15 * 60}
 

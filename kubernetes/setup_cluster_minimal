@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-CLUSTER_NAME="study-app-minimal"
+CLUSTER_NAME="devops-app-minimal"
 
 for dependency in k3d kubectl; do
   if ! command -v "$dependency" >/dev/null 2>&1; then

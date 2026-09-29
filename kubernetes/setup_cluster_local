@@ -10,7 +10,7 @@ NC='\033[0m' # No Color
 # Script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BASE_DIR="$(dirname "$SCRIPT_DIR")"
-CLUSTER_NAME="study-app-cluster"
+CLUSTER_NAME="devops-app-cluster"
 
 echo -e "${GREEN}DevOps Study App - Kubernetes Deployment Helper${NC}"
 echo -e "${YELLOW}This script will set up a k3d cluster and deploy the study app.${NC}"
@@ -73,13 +73,13 @@ kubectl apply -k "$SCRIPT_DIR/manifests/dev"
 
 # Wait for deployments to become available
 echo "Waiting for deployments to become available..."
-kubectl rollout status deployment/dev-backend -n study-app --timeout=120s
-kubectl rollout status deployment/dev-frontend -n study-app --timeout=120s
+kubectl rollout status deployment/dev-backend -n devops-app --timeout=120s
+kubectl rollout status deployment/dev-frontend -n devops-app --timeout=120s
 
 # Get service info
 echo -e "${GREEN}Application deployed successfully!${NC}"
 echo "Getting service information..."
-kubectl get services -n study-app
+kubectl get services -n devops-app
 
 # Function to wait for LoadBalancer IP assignment and get URL
 get_service_url() {
@@ -93,8 +93,8 @@ get_service_url() {
     local ip
     local port
 
-    ip=$(kubectl get svc "$service_name" -n study-app -o=jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null)
-    port=$(kubectl get svc "$service_name" -n study-app -o=jsonpath='{.spec.ports[0].port}' 2>/dev/null)
+    ip=$(kubectl get svc "$service_name" -n devops-app -o=jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null)
+    port=$(kubectl get svc "$service_name" -n devops-app -o=jsonpath='{.spec.ports[0].port}' 2>/dev/null)
 
     if [ -n "$ip" ] && [ -n "$port" ]; then
       echo "http://$ip:$port"
@@ -122,17 +122,17 @@ if [ -n "$FRONTEND_URL" ] && [ -n "$BACKEND_URL" ]; then
   echo -e "Backend health check: ${YELLOW}$BACKEND_URL/health${NC}"
 else
   echo -e "\n${RED}Could not determine service URLs. Please check the service status:${NC}"
-  echo -e "${YELLOW}kubectl get svc -n study-app${NC}"
+  echo -e "${YELLOW}kubectl get svc -n devops-app${NC}"
 fi
 
 # Extract service ports for port-forwarding instructions
-FRONTEND_PORT=$(kubectl get svc dev-frontend -n study-app -o=jsonpath='{.spec.ports[0].port}' 2>/dev/null)
-BACKEND_PORT=$(kubectl get svc dev-backend -n study-app -o=jsonpath='{.spec.ports[0].port}' 2>/dev/null)
+FRONTEND_PORT=$(kubectl get svc dev-frontend -n devops-app -o=jsonpath='{.spec.ports[0].port}' 2>/dev/null)
+BACKEND_PORT=$(kubectl get svc dev-backend -n devops-app -o=jsonpath='{.spec.ports[0].port}' 2>/dev/null)
 
 echo -e "\n${GREEN}Alternative access via port-forwarding (for local development):${NC}"
 echo -e "To access via port-forwarding, run these commands in separate terminals:"
-echo -e "${YELLOW}kubectl port-forward svc/dev-frontend -n study-app $FRONTEND_PORT:$FRONTEND_PORT${NC}"
-echo -e "${YELLOW}kubectl port-forward svc/dev-backend -n study-app $BACKEND_PORT:$BACKEND_PORT${NC}"
+echo -e "${YELLOW}kubectl port-forward svc/dev-frontend -n devops-app $FRONTEND_PORT:$FRONTEND_PORT${NC}"
+echo -e "${YELLOW}kubectl port-forward svc/dev-backend -n devops-app $BACKEND_PORT:$BACKEND_PORT${NC}"
 echo -e "Then access the application at:"
 echo -e "Frontend: ${YELLOW}http://localhost:$FRONTEND_PORT${NC}"
 echo -e "Backend API: ${YELLOW}http://localhost:$BACKEND_PORT${NC}"

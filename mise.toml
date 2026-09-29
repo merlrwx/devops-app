@@ -16,8 +16,8 @@ idiomatic_version_file_enable_tools = ["python"]
 experimental = true
 
 [env]
-APP_REPO = 'study-app'
-GITOPS_REPO = 'study-app-gitops'
+APP_REPO = 'devops-app'
+GITOPS_REPO = 'devops-app-gitops'
 
 [hooks]
 enter = "bash ./scripts/setup_project"
