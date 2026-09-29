@@ -12,6 +12,8 @@ on:
     secrets:
       DEVOPS_STUDY_APP:
         required: true
+      GITOPS_DEPLOY_KEY:
+        required: true
 
 concurrency:
   group: update-gitops-dev
@@ -32,7 +34,7 @@ jobs:
           repository: merlrwx/devops-app-gitops
           ref: main
           path: gitops
-          token: ${{ secrets.DEVOPS_STUDY_APP }}
+          ssh-key: ${{ secrets.GITOPS_DEPLOY_KEY }}
 
       - name: Update dev image tag
         env:

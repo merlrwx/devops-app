@@ -50,3 +50,4 @@ jobs:
       image: backend
     secrets:
       DEVOPS_STUDY_APP: ${{ secrets.DEVOPS_STUDY_APP }}
+      GITOPS_DEPLOY_KEY: ${{ secrets.GITOPS_DEPLOY_KEY }}
