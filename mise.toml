@@ -29,3 +29,7 @@ run = "bash ./kubernetes/setup_cluster_local"
 [tasks.k8s-setup-minimal]
 description = "Set up a minimal local Kubernetes cluster without deploying workloads"
 run = "bash ./kubernetes/setup_cluster_minimal"
+
+[tasks.e2e-test]
+description = "Run end-to-end tests for the Pomodoro app in a local k3d cluster"
+run = "uv run --locked --project ./kubernetes python ./kubernetes/e2e_test.py"
