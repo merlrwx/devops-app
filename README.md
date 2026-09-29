@@ -30,29 +30,29 @@ Create the local k3d cluster and bootstrap Flux from the configured GitOps repos
 mise run setup-cluster-gitops
 ```
 
-The task builds and imports the app images, creates the GitHub deploy key/repository if needed, and bootstraps Flux to reconcile `clusters/dev`. Check deployments with `mise exec -- kubectl get pods -n devops-app`.
+The task builds and imports the app images, creates the GitHub deploy key/repository if needed, and bootstraps Flux to reconcile `clusters/dev`. Check deployments with `kubectl get pods -n devops-app`.
 
 Forward the services in separate terminals, then open <http://localhost:8501>:
 
 ```sh
-mise exec -- kubectl port-forward svc/dev-frontend -n devops-app 8501:22111
+kubectl port-forward svc/dev-frontend -n devops-app 8501:22111
 ```
 
 ```sh
-mise exec -- kubectl port-forward svc/dev-backend -n devops-app 8000:22112
+kubectl port-forward svc/dev-backend -n devops-app 8000:22112
 ```
 
 Sync the projects and run the test suites when working on app code:
 
 ```sh
-mise exec -- uv sync --locked --no-editable --project src/backend
-mise exec -- uv sync --locked --no-editable --project src/frontend
-mise exec -- uv run --locked --project src/backend pytest tests/ -v --cov=backend --cov-fail-under=80
-mise exec -- uv run --locked --project src/frontend pytest tests/ -v --cov=timer_utils --cov-fail-under=80
-mise exec -- pre-commit run --all-files
+uv sync --locked --no-editable --project src/backend
+uv sync --locked --no-editable --project src/frontend
+uv run --locked --project src/backend pytest tests/ -v --cov=backend --cov-fail-under=80
+uv run --locked --project src/frontend pytest tests/ -v --cov=timer_utils --cov-fail-under=80
+pre-commit run --all-files
 ```
 
-The E2E check is available as `mise run e2e-test`. Delete the local cluster when finished with `mise exec -- k3d cluster delete devops-app-cluster`.
+The E2E check is available as `mise run e2e-test`. Delete the local cluster when finished with `k3d cluster delete devops-app-cluster`.
 
 ## Project build path
 
@@ -62,11 +62,13 @@ The project is a small, practical study tracker used to build a DevOps workflow 
 
 ### Module 2 — Development environment
 
-`mise.toml` pins the development tools and exposes common Kubernetes tasks. The DevContainer runs `scripts/setup`; `scripts/setup_project` configures Git, Commitizen, and pre-commit hooks.
+`mise.toml` pins the development tools, including pre-commit, and exposes common Kubernetes tasks. `mise install` installs those tools, and the DevContainer activates them in Bash and Zsh, so run `uv` and `pre-commit` directly. The DevContainer runs `scripts/setup`; `scripts/setup_project` configures Git, Commitizen, and pre-commit hooks.
+
+Installing the pre-commit executable and registering its Git hooks are separate steps. The commands below register hooks in the current checkout; the DevPod setup does this automatically.
 
 ```sh
-mise exec -- pre-commit install
-mise exec -- pre-commit install --hook-type commit-msg
+pre-commit install
+pre-commit install --hook-type commit-msg
 cz commit
 ```
 
@@ -80,16 +82,16 @@ The backend project was initialized as a package and its dependencies managed wi
 
 ```sh
 cd src/backend
-mise exec -- uv init --package backend
-mise exec -- uv add fastapi uvicorn
-mise exec -- uv run study-tracker-api
+uv init --package backend
+uv add fastapi uvicorn
+uv run study-tracker-api
 ```
 
 The frontend follows the same workflow. To add a dependency, use `uv add <package>` in the relevant project directory, then commit the updated lockfile. The existing frontend can be run with:
 
 ```sh
 cd src/frontend
-mise exec -- uv run streamlit run --server.address 0.0.0.0 app.py
+uv run streamlit run --server.address 0.0.0.0 app.py
 ```
 
 The frontend exercise is to create the second uv project and connect it to the API; its implementation lives in `src/frontend`.
@@ -101,8 +103,8 @@ The container exercise starts with a simple Python entry point, then packages ea
 ```sh
 docker build -t devops-app-api:local -f src/backend/Dockerfile src/backend
 docker build -t devops-app-web:local -f src/frontend/Dockerfile src/frontend
-mise exec -- trivy image --scanners vuln devops-app-api:local
-mise exec -- trivy image --scanners vuln devops-app-web:local
+trivy image --scanners vuln devops-app-api:local
+trivy image --scanners vuln devops-app-web:local
 ```
 
 The image exercise compares Python base images, inspects image layers and size, scans with Trivy, then reduces build artifacts and runtime privileges. The frontend image solution is in `src/frontend/Dockerfile`.
