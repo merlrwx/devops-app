@@ -55,3 +55,24 @@ jobs:
           git add apps/dev/kustomization.yaml
           git commit -m "chore(images): update $IMAGE to $TAG"
           git push origin HEAD:main
+
+      - name: Update prod image tag
+        env:
+          TAG: ${{ inputs.tag }}
+          IMAGE: ${{ inputs.image }}
+        run: python actions-repo/scripts/update_kustomize_tag "$TAG" gitops/apps/prod/kustomization.yaml "$IMAGE"
+
+      - name: Create prod image update pull request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.DEVOPS_STUDY_APP }}
+          path: gitops
+          base: main
+          branch: gitops/update-tag-${{ inputs.image }}
+          delete-branch: true
+          commit-message: "chore(images): update prod ${{ inputs.image }} to ${{ inputs.tag }}"
+          committer: GitOps Bot <gitops-bot@users.noreply.github.com>
+          author: GitOps Bot <gitops-bot@users.noreply.github.com>
+          title: "Update prod ${{ inputs.image }} image to ${{ inputs.tag }}"
+          body: |
+            Promote the ${{ inputs.image }} image to `${{ inputs.tag }}` in `apps/prod`.
