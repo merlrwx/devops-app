@@ -12,8 +12,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BASE_DIR="$(dirname "$SCRIPT_DIR")"
 CLUSTER_NAME="devops-app-cluster"
 
-echo -e "${GREEN}DevOps Study App - Kubernetes Deployment Helper${NC}"
-echo -e "${YELLOW}This script will set up a k3d cluster and deploy the study app.${NC}"
+echo -e "${GREEN}DevOps App - Kubernetes Deployment Helper${NC}"
+echo -e "${YELLOW}This script will set up a k3d cluster and deploy the DevOps app.${NC}"
 echo ""
 
 # Check for required tools
