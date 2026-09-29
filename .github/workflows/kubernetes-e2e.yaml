@@ -8,10 +8,32 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
 
 jobs:
+  check_paths:
+    runs-on: ubuntu-24.04
+    outputs:
+      should_run: ${{ steps.filter.outputs.e2e }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7.0.1
+
+      - name: Filter E2E paths
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        id: filter
+        with:
+          filters: |
+            e2e:
+              - 'src/frontend/**'
+              - 'src/backend/**'
+              - 'kubernetes/**'
+              - '.github/workflows/kubernetes-e2e.yaml'
+
   e2e:
     name: Kubernetes end-to-end tests
+    needs: check_paths
+    if: needs.check_paths.outputs.should_run == 'true'
     runs-on: ubuntu-24.04
     steps:
       - name: Check out repository
