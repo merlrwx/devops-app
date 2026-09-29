@@ -1,0 +1,57 @@
+name: Update GitOps Repository
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        required: true
+        type: string
+      image:
+        required: true
+        type: string
+    secrets:
+      DEVOPS_STUDY_APP:
+        required: true
+
+concurrency:
+  group: update-gitops-dev
+  cancel-in-progress: false
+
+jobs:
+  update-gitops:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout actions repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: actions-repo
+
+      - name: Checkout GitOps repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: merlrwx/devops-app-gitops
+          ref: main
+          path: gitops
+          token: ${{ secrets.DEVOPS_STUDY_APP }}
+
+      - name: Update dev image tag
+        env:
+          TAG: ${{ inputs.tag }}
+          IMAGE: ${{ inputs.image }}
+        run: python actions-repo/scripts/update_kustomize_tag "$TAG" gitops/apps/dev/kustomization.yaml "$IMAGE"
+
+      - name: Commit and push GitOps change
+        working-directory: gitops
+        env:
+          IMAGE: ${{ inputs.image }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          if git diff --quiet -- apps/dev/kustomization.yaml; then
+            echo "GitOps already uses $IMAGE:$TAG"
+            exit 0
+          fi
+          git config user.name "GitOps Bot"
+          git config user.email "gitops-bot@users.noreply.github.com"
+          git add apps/dev/kustomization.yaml
+          git commit -m "chore(images): update $IMAGE to $TAG"
+          git push origin HEAD:main
