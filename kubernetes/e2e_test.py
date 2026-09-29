@@ -62,7 +62,16 @@ def build_and_load_images():
             directory / "Dockerfile",
             directory,
         )
-        run("k3d", "image", "import", f"{app}:dev", "--cluster", CLUSTER_NAME)
+        run(
+            "k3d",
+            "image",
+            "import",
+            f"{app}:dev",
+            "--cluster",
+            CLUSTER_NAME,
+            "--mode",
+            "direct",
+        )
 
 
 def service_url(name):
