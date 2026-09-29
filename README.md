@@ -6,48 +6,53 @@ A study tracker built with a FastAPI API and Streamlit UI. This repository docum
 
 ### Prerequisites
 
-- Git, Docker with Compose, and [mise](https://mise.jdx.dev/)
-- Optional: [DevPod](https://devpod.sh/) for the configured development container
+- Docker and [DevPod](https://devpod.sh/)
+- GitHub CLI authenticated to an account that can create/use the GitOps repository
 
-Install the repository tools and sync both Python projects:
+Start the configured workspace, then install the tools pinned in `mise.toml`:
 
 ```sh
+devpod up .
+devpod ssh
 mise install
-uv sync --locked --no-editable --project src/backend
-uv sync --locked --no-editable --project src/frontend
 ```
 
-Run the API and UI in separate terminals from the repository root:
+Inside the workspace, set its DevPod ID (used to store the deploy key) and authenticate GitHub CLI if needed:
 
 ```sh
-cd src/backend && uv run study-tracker-api
+export DEVPOD_WORKSPACE_ID=devops-app
+gh auth login
+```
+
+Create the local k3d cluster and bootstrap Flux from the configured GitOps repository:
+
+```sh
+mise run setup-cluster-gitops
+```
+
+The task builds and imports the app images, creates the GitHub deploy key/repository if needed, and bootstraps Flux to reconcile `clusters/dev`. Check deployments with `mise exec -- kubectl get pods -n devops-app`.
+
+Forward the services in separate terminals, then open <http://localhost:8501>:
+
+```sh
+mise exec -- kubectl port-forward svc/dev-frontend -n devops-app 8501:22111
 ```
 
 ```sh
-cd src/frontend && BACKEND_URL=http://127.0.0.1:8000 \
-  uv run streamlit run --server.address 0.0.0.0 app.py
+mise exec -- kubectl port-forward svc/dev-backend -n devops-app 8000:22112
 ```
 
-Open <http://localhost:8501>; the API health endpoint is <http://localhost:8000/health>.
-
-Run the test suites, coverage checks, and hooks:
+Sync the projects and run the test suites when working on app code:
 
 ```sh
-(cd src/backend && uv run --locked pytest tests/ -v --cov=backend --cov-fail-under=80)
-(cd src/frontend && uv run --locked pytest tests/ -v --cov=timer_utils --cov-fail-under=80)
-pre-commit run --all-files
+mise exec -- uv sync --locked --no-editable --project src/backend
+mise exec -- uv sync --locked --no-editable --project src/frontend
+mise exec -- uv run --locked --project src/backend pytest tests/ -v --cov=backend --cov-fail-under=80
+mise exec -- uv run --locked --project src/frontend pytest tests/ -v --cov=timer_utils --cov-fail-under=80
+mise exec -- pre-commit run --all-files
 ```
 
-Or run both services with Compose:
-
-```sh
-docker compose up --build
-docker compose down
-```
-
-Compose stores SQLite data in a named volume. To delete it too, run `docker compose down --volumes`.
-
-To use the DevPod environment, run `devpod up .` then `devpod ssh`. Its setup script trusts `mise.toml` and installs the pinned tools.
+The E2E check is available as `mise run e2e-test`. Delete the local cluster when finished with `mise exec -- k3d cluster delete devops-app-cluster`.
 
 ## Project build path
 
@@ -60,9 +65,8 @@ The project is a small, practical study tracker used to build a DevOps workflow 
 `mise.toml` pins the development tools and exposes common Kubernetes tasks. The DevContainer runs `scripts/setup`; `scripts/setup_project` configures Git, Commitizen, and pre-commit hooks.
 
 ```sh
-mise install
-pre-commit install
-pre-commit install --hook-type commit-msg
+mise exec -- pre-commit install
+mise exec -- pre-commit install --hook-type commit-msg
 cz commit
 ```
 
@@ -76,16 +80,16 @@ The backend project was initialized as a package and its dependencies managed wi
 
 ```sh
 cd src/backend
-uv init --package backend
-uv add fastapi uvicorn
-uv run study-tracker-api
+mise exec -- uv init --package backend
+mise exec -- uv add fastapi uvicorn
+mise exec -- uv run study-tracker-api
 ```
 
 The frontend follows the same workflow. To add a dependency, use `uv add <package>` in the relevant project directory, then commit the updated lockfile. The existing frontend can be run with:
 
 ```sh
 cd src/frontend
-uv run streamlit run --server.address 0.0.0.0 app.py
+mise exec -- uv run streamlit run --server.address 0.0.0.0 app.py
 ```
 
 The frontend exercise is to create the second uv project and connect it to the API; its implementation lives in `src/frontend`.
@@ -97,15 +101,15 @@ The container exercise starts with a simple Python entry point, then packages ea
 ```sh
 docker build -t devops-app-api:local -f src/backend/Dockerfile src/backend
 docker build -t devops-app-web:local -f src/frontend/Dockerfile src/frontend
-trivy image --scanners vuln devops-app-api:local
-trivy image --scanners vuln devops-app-web:local
+mise exec -- trivy image --scanners vuln devops-app-api:local
+mise exec -- trivy image --scanners vuln devops-app-web:local
 ```
 
 The image exercise compares Python base images, inspects image layers and size, scans with Trivy, then reduces build artifacts and runtime privileges. The frontend image solution is in `src/frontend/Dockerfile`.
 
 ### Module 5 — CI/CD with GitHub Actions
 
-Pull requests run Ruff/pre-commit, backend and frontend tests with an 80% coverage threshold, container builds, and Trivy scans. Separate workflows keep the two service pipelines readable; path filters avoid running unrelated checks. Docker Compose remains the local integration path.
+Pull requests run Ruff/pre-commit, backend and frontend tests with an 80% coverage threshold, container builds, and Trivy scans. Separate workflows keep the two service pipelines readable; path filters avoid running unrelated checks. The local development deployment uses k3d and Flux; Compose is available for a quick container-only smoke run.
 
 Release Please manages independent backend and frontend versions. Release tags build and publish `ghcr.io/<owner>/devops-app-api` and `ghcr.io/<owner>/devops-app-web`, then call the reusable GitOps update workflow. Development image tags update directly; production image updates are proposed as pull requests.
 
@@ -126,9 +130,9 @@ The minimal cluster task creates a clean cluster; the local setup task builds an
 The GitOps repository is bootstrapped with Flux and separates reusable app manifests from environment overlays: `apps/base`, `apps/dev`, and `apps/prod`, with the development cluster entry under `clusters/dev`. Prepare a deploy key and bootstrap Flux with:
 
 ```sh
-bash scripts/setup_deploy_key --visibility private
+mise run setup-keys
 mise run setup-gitops
 mise run setup-cluster-gitops
 ```
 
-`setup_deploy_key` creates the GitHub GitOps repository if needed and adds its deploy key. The GitHub Actions release workflow then updates the development overlay and opens a production image update PR. A production cluster entry can be added when production Flux reconciliation is ready.
+`setup_deploy_key` creates the GitHub GitOps repository if needed and adds its deploy key. `setup-cluster-gitops` combines local cluster creation and Flux bootstrap. The GitHub Actions release workflow updates the development overlay and opens a production image update PR. A production cluster entry can be added when production Flux reconciliation is ready.
