@@ -39,3 +39,14 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE_NAME }}:latest
           cache-from: type=gha,scope=frontend
           cache-to: type=gha,mode=max,scope=frontend
+
+  trigger-gitops:
+    name: Update GitOps
+    needs: build-and-push-frontend
+    if: needs.build-and-push-frontend.result == 'success'
+    uses: ./.github/workflows/update-gitops.yaml
+    with:
+      tag: ${{ github.ref_name }}
+      image: frontend
+    secrets:
+      DEVOPS_STUDY_APP: ${{ secrets.DEVOPS_STUDY_APP }}

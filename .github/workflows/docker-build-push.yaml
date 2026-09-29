@@ -39,3 +39,14 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE_NAME }}:latest
           cache-from: type=gha,scope=backend
           cache-to: type=gha,mode=max,scope=backend
+
+  trigger-gitops:
+    name: Update GitOps
+    needs: build-and-push-backend
+    if: needs.build-and-push-backend.result == 'success'
+    uses: ./.github/workflows/update-gitops.yaml
+    with:
+      tag: ${{ github.ref_name }}
+      image: backend
+    secrets:
+      DEVOPS_STUDY_APP: ${{ secrets.DEVOPS_STUDY_APP }}
