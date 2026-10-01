@@ -2,6 +2,7 @@ apiVersion: k3d.io/v1alpha5
 kind: Simple
 metadata:
   name: devops-app-cluster
+image: rancher/k3s:v1.35.8-k3s1
 servers: 1
 agents: 1
 options:

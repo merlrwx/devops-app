@@ -2,21 +2,31 @@
 set -euo pipefail
 
 CLUSTER_NAME="devops-app-minimal"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-for dependency in k3d kubectl; do
+for dependency in k3d kubectl docker; do
   if ! command -v "$dependency" >/dev/null 2>&1; then
     echo "Error: $dependency is not installed." >&2
     exit 1
   fi
 done
 
-if k3d cluster list | awk -v name="$CLUSTER_NAME" '$1 == name { found = 1 } END { exit !found }'; then
+if ! docker info >/dev/null 2>&1; then
+  echo "Error: Docker daemon is unavailable. Start Docker and check your permissions." >&2
+  exit 1
+fi
+
+clusters=$(k3d cluster list)
+if awk -v name="$CLUSTER_NAME" '$1 == name { found = 1 } END { exit !found }' <<<"$clusters"; then
   echo "Using existing cluster $CLUSTER_NAME."
 else
   echo "Creating a minimal k3d cluster..."
-  k3d cluster create "$CLUSTER_NAME" --servers 1 --agents 0 --no-lb
+  k3d cluster create "$CLUSTER_NAME" --config "$SCRIPT_DIR/k3d-config.yaml" --servers 1 --agents 0 --no-lb
 fi
 
 kubectl config use-context "k3d-$CLUSTER_NAME"
+kubectl wait --for=condition=Ready nodes --all --timeout=120s
+kubectl --namespace kube-system wait --for=create deployment/coredns --timeout=120s
+kubectl --namespace kube-system rollout status deployment/coredns --timeout=120s
 kubectl get nodes
 echo "Cluster ready. No application workloads were deployed."

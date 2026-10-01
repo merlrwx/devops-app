@@ -63,6 +63,11 @@ fi
 echo "Configuring kubectl to use the cluster..."
 kubectl config use-context k3d-"$CLUSTER_NAME"
 
+echo "Waiting for nodes and cluster DNS..."
+kubectl wait --for=condition=Ready nodes --all --timeout=120s
+kubectl --namespace kube-system wait --for=create deployment/coredns --timeout=120s
+kubectl --namespace kube-system rollout status deployment/coredns --timeout=120s
+
 # Share deployment steps with the lightweight local sync command.
 bash "$SCRIPT_DIR/sync_local" "$CLUSTER_NAME"
 

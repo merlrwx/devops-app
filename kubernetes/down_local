@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+CLUSTER_NAME="devops-app-cluster"
+
+if [[ $# != 0 ]]; then
+  echo "Usage: mise run k8s-down-local" >&2
+  exit 1
+fi
+
+# A failed list must stop here, rather than being mistaken for an absent cluster.
+clusters=$(k3d cluster list --no-headers)
+if ! awk -v name="$CLUSTER_NAME" '$1 == name { found = 1 } END { exit !found }' <<<"$clusters"; then
+  echo "Cluster $CLUSTER_NAME is already absent."
+  exit 0
+fi
+
+echo "Deleting $CLUSTER_NAME, including its application data and any Flux installation."
+k3d cluster delete "$CLUSTER_NAME"
