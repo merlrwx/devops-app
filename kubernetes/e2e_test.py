@@ -150,6 +150,7 @@ def require(condition, message):
 
 
 def test_backend(base_url):
+    require(api(base_url, "/live") == {"status": "ok"}, "Backend liveness check failed")
     require(api(base_url, "/health") == {"status": "ok"}, "Backend health check failed")
     timer = api(base_url, "/api/timer")
     require(timer["status"] == "idle", "Stop the active timer before running e2e tests")

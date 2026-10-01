@@ -21,6 +21,26 @@ spec:
           env:
             - name: BACKEND_URL
               value: "http://backend:22112"
+          startupProbe:
+            httpGet:
+              path: /_stcore/health
+              port: 8501
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 24
+          readinessProbe:
+            httpGet:
+              path: /_stcore/health
+              port: 8501
+            periodSeconds: 5
+            timeoutSeconds: 2
+          livenessProbe:
+            httpGet:
+              path: /_stcore/health
+              port: 8501
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
           resources:
             limits:
               memory: "512Mi"

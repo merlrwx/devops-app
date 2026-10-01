@@ -53,5 +53,8 @@ jobs:
       - name: Install k3d
         run: curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | TAG=v5.8.3 bash
 
+      - name: Check local deployment guards and rendering
+        run: uv run --locked --project ./kubernetes python -m unittest discover -s kubernetes/tests -v
+
       - name: Run Kubernetes end-to-end tests
         run: uv run --locked --project ./kubernetes python ./kubernetes/e2e_test.py

@@ -124,10 +124,13 @@ The `kubernetes/` directory contains app manifests and the Python end-to-end tes
 ```sh
 mise run k8s-setup-minimal
 mise run k8s-setup-local
+mise run k8s-sync-local
 mise run e2e-test
 ```
 
 The minimal cluster task creates a clean cluster; the local setup task builds and deploys the app. The E2E task creates a test cluster, verifies both services, and cleans up on success. Run `uv run --locked --project ./kubernetes python ./kubernetes/e2e_test.py --no-cleanup` to keep the cluster when diagnosing a failed run.
+
+Local setup retains its delete/recreate prompt and service URL output. The new `k8s-sync-local` command updates an existing cluster after edits without recreating it. See [the Kubernetes workflow](kubernetes/README.md) for image tags, health probes, and the Flux boundary.
 
 The GitOps repository is bootstrapped with Flux and separates reusable app manifests from environment overlays: `apps/base`, `apps/dev`, and `apps/prod`, with the development cluster entry under `clusters/dev`. Prepare a deploy key and bootstrap Flux with:
 

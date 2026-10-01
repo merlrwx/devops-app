@@ -9,7 +9,6 @@ NC='\033[0m' # No Color
 
 # Script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-BASE_DIR="$(dirname "$SCRIPT_DIR")"
 CLUSTER_NAME="devops-app-cluster"
 
 echo -e "${GREEN}DevOps App - Kubernetes Deployment Helper${NC}"
@@ -28,11 +27,21 @@ echo "Checking dependencies..."
 check_dependency k3d
 check_dependency kubectl
 check_dependency docker
+if ! docker info >/dev/null 2>&1; then
+  echo -e "${RED}Error: Docker daemon is unavailable. Start Docker and check your permissions.${NC}" >&2
+  exit 1
+fi
+
 echo -e "${GREEN}All dependencies are installed.${NC}"
 echo ""
 
+# Match the complete cluster name so another similarly named cluster is not selected.
+cluster_exists() {
+  k3d cluster list --no-headers | awk '{ print $1 }' | grep -Fxq -- "$CLUSTER_NAME"
+}
+
 # Check if cluster exists
-if k3d cluster list | grep -q "$CLUSTER_NAME"; then
+if cluster_exists; then
   echo -e "${YELLOW}Cluster $CLUSTER_NAME already exists.${NC}"
   read -p "Do you want to delete and recreate it? (y/n): " -r
   if [[ $REPLY =~ ^[Yy]$ ]]; then
@@ -44,7 +53,7 @@ if k3d cluster list | grep -q "$CLUSTER_NAME"; then
 fi
 
 # Create cluster if it doesn't exist
-if ! k3d cluster list | grep -q "$CLUSTER_NAME"; then
+if ! cluster_exists; then
   echo "Creating k3d cluster using config file..."
   k3d cluster create --config "$SCRIPT_DIR/k3d-config.yaml"
   echo -e "${GREEN}Cluster created successfully!${NC}"
@@ -54,27 +63,8 @@ fi
 echo "Configuring kubectl to use the cluster..."
 kubectl config use-context k3d-"$CLUSTER_NAME"
 
-# Build Docker images
-echo "Building Docker images..."
-echo "Building backend image..."
-docker build -t backend:dev -f "$BASE_DIR/src/backend/Dockerfile" "$BASE_DIR/src/backend"
-
-echo "Building frontend image..."
-docker build -t frontend:dev -f "$BASE_DIR/src/frontend/Dockerfile" "$BASE_DIR/src/frontend"
-
-# Import images into k3d
-echo "Importing images into k3d..."
-k3d image import backend:dev -c "$CLUSTER_NAME"
-k3d image import frontend:dev -c "$CLUSTER_NAME"
-
-# Deploy the application using kustomize
-echo "Deploying application using kustomize..."
-kubectl apply -k "$SCRIPT_DIR/manifests/dev"
-
-# Wait for deployments to become available
-echo "Waiting for deployments to become available..."
-kubectl rollout status deployment/dev-backend -n devops-app --timeout=120s
-kubectl rollout status deployment/dev-frontend -n devops-app --timeout=120s
+# Share deployment steps with the lightweight local sync command.
+bash "$SCRIPT_DIR/sync_local" "$CLUSTER_NAME"
 
 # Get service info
 echo -e "${GREEN}Application deployed successfully!${NC}"
@@ -87,7 +77,7 @@ get_service_url() {
   local max_attempts=30
   local attempt=1
 
-  echo -e "Waiting for $service_name external IP..."
+  echo -e "Waiting for $service_name external IP..." >&2
 
   while [ $attempt -le $max_attempts ]; do
     local ip
@@ -101,19 +91,19 @@ get_service_url() {
       return 0
     fi
 
-    echo -n "."
+    echo -n "." >&2
     sleep 2
     ((attempt++))
   done
 
-  echo ""
-  echo -e "${RED}Could not get external IP for $service_name after $max_attempts attempts${NC}"
+  echo "" >&2
+  echo -e "${RED}Could not get external IP for $service_name after $max_attempts attempts${NC}" >&2
   return 1
 }
 
 # Get frontend and backend service URLs
-FRONTEND_URL=$(get_service_url "dev-frontend")
-BACKEND_URL=$(get_service_url "dev-backend")
+FRONTEND_URL=$(get_service_url "dev-frontend") || FRONTEND_URL=""
+BACKEND_URL=$(get_service_url "dev-backend") || BACKEND_URL=""
 
 echo -e "\n${GREEN}Access your application via LoadBalancer external IPs:${NC}"
 if [ -n "$FRONTEND_URL" ] && [ -n "$BACKEND_URL" ]; then
@@ -140,3 +130,5 @@ echo -e "Backend health check: ${YELLOW}http://localhost:$BACKEND_PORT/health${N
 
 echo -e "\nTo delete the cluster when finished:"
 echo -e "${YELLOW}k3d cluster delete $CLUSTER_NAME${NC}"
+
+echo -e "${GREEN}After editing the app, run: mise run k8s-sync-local${NC}"
