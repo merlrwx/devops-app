@@ -1,7 +1,6 @@
 import argparse
 import json
 import logging
-import re
 import shutil
 import subprocess
 import sys
@@ -14,6 +13,7 @@ ROOT_DIR = Path(__file__).resolve().parent.parent
 KUBERNETES_DIR = Path(__file__).resolve().parent
 CLUSTER_NAME = "devops-app-cluster"
 NAMESPACE = "devops-app"
+SERVICES = ("dev-backend", "dev-frontend")
 DEFAULT_DURATIONS = {"focus": 25 * 60, "short_break": 5 * 60, "long_break": 15 * 60}
 
 logging.basicConfig(
@@ -29,15 +29,12 @@ def run(*command, cwd=ROOT_DIR, check=True, capture_output=False):
     )
 
 
-def kubectl(*command, **kwargs):
-    return run("kubectl", "--context", f"k3d-{CLUSTER_NAME}", *command, **kwargs)
-
-
 def setup_cluster(skip_cluster_creation):
     if skip_cluster_creation:
+        run("kubectl", "config", "use-context", f"k3d-{CLUSTER_NAME}")
         return
 
-    result = run("k3d", "cluster", "list", capture_output=True)
+    result = run("k3d", "cluster", "list", check=False, capture_output=True)
     clusters = {line.split()[0] for line in result.stdout.splitlines() if line.split()}
     if CLUSTER_NAME in clusters:
         run("k3d", "cluster", "delete", CLUSTER_NAME)
@@ -46,17 +43,41 @@ def setup_cluster(skip_cluster_creation):
         "k3d",
         "cluster",
         "create",
-        CLUSTER_NAME,
-        "--kubeconfig-switch-context=false",
         "--config",
         KUBERNETES_DIR / "k3d-config.yaml",
     )
-    kubectl("wait", "--for=condition=Ready", "nodes", "--all", "--timeout=60s")
+    run("kubectl", "config", "use-context", f"k3d-{CLUSTER_NAME}")
+    run("kubectl", "wait", "--for=condition=Ready", "nodes", "--all", "--timeout=60s")
+
+
+def build_and_load_images():
+    for app in ("backend", "frontend"):
+        directory = ROOT_DIR / "src" / app
+        run(
+            "docker",
+            "build",
+            "--tag",
+            f"{app}:dev",
+            "--file",
+            directory / "Dockerfile",
+            directory,
+        )
+        run(
+            "k3d",
+            "image",
+            "import",
+            f"{app}:dev",
+            "--cluster",
+            CLUSTER_NAME,
+            "--mode",
+            "direct",
+        )
 
 
 def service_url(name):
     for attempt in range(30):
-        result = kubectl(
+        result = run(
+            "kubectl",
             "get",
             "service",
             name,
@@ -85,7 +106,17 @@ def service_url(name):
 
 
 def deploy_application():
-    run("bash", KUBERNETES_DIR / "sync_local", CLUSTER_NAME)
+    run("kubectl", "apply", "-k", KUBERNETES_DIR / "manifests" / "dev")
+    for name in SERVICES:
+        run(
+            "kubectl",
+            "rollout",
+            "status",
+            f"deployment/{name}",
+            "--namespace",
+            NAMESPACE,
+            "--timeout=120s",
+        )
     return service_url("dev-backend"), service_url("dev-frontend")
 
 
@@ -198,26 +229,18 @@ def test_frontend(base_url):
 
 def cleanup(skip_cluster_creation):
     if skip_cluster_creation:
-        kubectl("delete", "namespace", NAMESPACE, check=False)
+        run("kubectl", "delete", "namespace", NAMESPACE, check=False)
     else:
         run("k3d", "cluster", "delete", CLUSTER_NAME, check=False)
 
 
 def main():
-    global CLUSTER_NAME
-
     parser = argparse.ArgumentParser(
         description="Run end-to-end tests for the Pomodoro app in k3d"
-    )
-    parser.add_argument(
-        "--cluster-name", default=CLUSTER_NAME, help="Cluster to recreate for testing"
     )
     parser.add_argument("--skip-cluster-creation", action="store_true")
     parser.add_argument("--no-cleanup", action="store_true")
     args = parser.parse_args()
-    if not re.fullmatch(r"[a-z0-9][a-z0-9-]*", args.cluster_name):
-        parser.error("Cluster name must contain lowercase letters, digits, and hyphens")
-    CLUSTER_NAME = args.cluster_name
 
     missing = [tool for tool in ("docker", "kubectl", "k3d") if not shutil.which(tool)]
     if missing:
@@ -226,6 +249,7 @@ def main():
     success = False
     try:
         setup_cluster(args.skip_cluster_creation)
+        build_and_load_images()
         backend_url, frontend_url = deploy_application()
         wait_for_service(f"{backend_url}/health")
         wait_for_service(f"{frontend_url}/_stcore/health")

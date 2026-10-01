@@ -11,6 +11,7 @@ if [[ $# -gt 1 || ! "$CLUSTER_NAME" =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
   exit 1
 fi
 
+# Check prerequisites before building images or changing workloads.
 for dependency in docker k3d kubectl; do
   if ! command -v "$dependency" >/dev/null 2>&1; then
     echo "Error: $dependency is not installed." >&2
@@ -23,8 +24,8 @@ if ! docker info >/dev/null 2>&1; then
   exit 1
 fi
 
-clusters=$(k3d cluster list)
-if ! awk -v name="$CLUSTER_NAME" '$1 == name { found = 1 } END { exit !found }' <<< "$clusters"; then
+cluster_names=$(k3d cluster list --no-headers | awk '{ print $1 }')
+if ! grep -Fxq -- "$CLUSTER_NAME" <<< "$cluster_names"; then
   echo "Error: Cluster $CLUSTER_NAME does not exist. Run mise run k8s-setup-local first." >&2
   exit 1
 fi
@@ -35,43 +36,59 @@ if [[ -n "$flux_namespace" ]]; then
   exit 1
 fi
 
-work_dir=$(mktemp -d)
-trap '
-  if [[ -n "${build_tag:-}" ]]; then
-    docker image rm "$build_tag" >/dev/null 2>&1 || true
-  fi
-  rm -rf "$work_dir"
-' EXIT
+# Keep generated manifests and temporary build tags out of the checked-in overlay.
+WORK_DIR=$(mktemp -d)
+BUILD_NAME=$(basename "$WORK_DIR")
+BACKEND_BUILD_IMAGE="backend:local-build-$BUILD_NAME"
+FRONTEND_BUILD_IMAGE="frontend:local-build-$BUILD_NAME"
 
-# Render first so the temporary overlay needs no paths outside its own directory.
-kubectl --context "$CONTEXT" kustomize "$SCRIPT_DIR/manifests/dev" > "$work_dir/resources.yaml"
-cat > "$work_dir/kustomization.yaml" <<'YAML'
+cleanup() {
+  docker image rm "$BACKEND_BUILD_IMAGE" "$FRONTEND_BUILD_IMAGE" >/dev/null 2>&1 || true
+  rm -rf "$WORK_DIR"
+}
+trap cleanup EXIT
+
+# Render the existing overlay first; the temporary overlay references this local file.
+kubectl --context "$CONTEXT" kustomize "$SCRIPT_DIR/manifests/dev" > "$WORK_DIR/resources.yaml"
+
+# Build both services using their existing Dockerfiles and Docker's cache.
+# Timestamped provenance changes image IDs on every build, so omit it for local images.
+echo "Building backend image..."
+docker build --provenance=false --tag "$BACKEND_BUILD_IMAGE" \
+  --file "$BASE_DIR/src/backend/Dockerfile" "$BASE_DIR/src/backend"
+echo "Building frontend image..."
+docker build --provenance=false --tag "$FRONTEND_BUILD_IMAGE" \
+  --file "$BASE_DIR/src/frontend/Dockerfile" "$BASE_DIR/src/frontend"
+
+# Docker IDs are sha256:<hash>. Use the hash in the deployment tag so changed
+# images trigger rollouts and unchanged images keep their existing Pods.
+BACKEND_HASH=$(docker image inspect "$BACKEND_BUILD_IMAGE" --format '{{.Id}}' | cut -d: -f2)
+FRONTEND_HASH=$(docker image inspect "$FRONTEND_BUILD_IMAGE" --format '{{.Id}}' | cut -d: -f2)
+BACKEND_IMAGE="backend:local-$BACKEND_HASH"
+FRONTEND_IMAGE="frontend:local-$FRONTEND_HASH"
+docker tag "$BACKEND_BUILD_IMAGE" "$BACKEND_IMAGE"
+docker tag "$FRONTEND_BUILD_IMAGE" "$FRONTEND_IMAGE"
+
+echo "Importing images into k3d..."
+k3d image import "$BACKEND_IMAGE" "$FRONTEND_IMAGE" --cluster "$CLUSTER_NAME" --mode direct
+
+# Override only image tags in a temporary Kustomization, then apply it once.
+cat > "$WORK_DIR/kustomization.yaml" <<YAML
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - resources.yaml
 images:
+  - name: backend
+    newTag: local-$BACKEND_HASH
+  - name: frontend
+    newTag: local-$FRONTEND_HASH
 YAML
+kubectl --context "$CONTEXT" kustomize "$WORK_DIR" > "$WORK_DIR/deployment.yaml"
 
-for app in backend frontend; do
-  echo "Building $app..."
-  # Local-only images need stable IDs; timestamped provenance would change every build.
-  build_tag="$app:local-build-${work_dir##*/}"
-  docker build --provenance=false --tag "$build_tag" --file "$BASE_DIR/src/$app/Dockerfile" "$BASE_DIR/src/$app"
-  image_id=$(docker image inspect "$build_tag" --format '{{.Id}}')
-  tag="local-${image_id#sha256:}"
-  docker tag "$image_id" "$app:$tag"
-  docker image rm "$build_tag" >/dev/null
-  build_tag=""
-  k3d image import "$app:$tag" --cluster "$CLUSTER_NAME" --mode direct
-  cat >> "$work_dir/kustomization.yaml" <<YAML
-  - name: $app
-    newTag: $tag
-YAML
-done
+echo "Deploying application using kustomize..."
+kubectl --context "$CONTEXT" apply -f "$WORK_DIR/deployment.yaml"
 
-kubectl --context "$CONTEXT" kustomize "$work_dir" > "$work_dir/deployment.yaml"
-kubectl --context "$CONTEXT" apply -f "$work_dir/deployment.yaml"
-for app in backend frontend; do
-  kubectl --context "$CONTEXT" rollout status "deployment/dev-$app" -n devops-app --timeout=180s
-done
+echo "Waiting for deployments to become available..."
+kubectl --context "$CONTEXT" rollout status deployment/dev-backend -n devops-app --timeout=180s
+kubectl --context "$CONTEXT" rollout status deployment/dev-frontend -n devops-app --timeout=180s
