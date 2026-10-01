@@ -221,3 +221,6 @@ __marimo__/
 
 # Local GitOps deploy keys
 dev-keys/
+
+# Local implementation plans
+/plans/
