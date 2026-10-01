@@ -30,6 +30,7 @@ def run(*command, cwd=ROOT_DIR, check=True, capture_output=False):
 
 
 def setup_cluster(skip_cluster_creation):
+    run("docker", "info", capture_output=True)
     if skip_cluster_creation:
         run("kubectl", "config", "use-context", f"k3d-{CLUSTER_NAME}")
         return
@@ -47,7 +48,25 @@ def setup_cluster(skip_cluster_creation):
         KUBERNETES_DIR / "k3d-config.yaml",
     )
     run("kubectl", "config", "use-context", f"k3d-{CLUSTER_NAME}")
-    run("kubectl", "wait", "--for=condition=Ready", "nodes", "--all", "--timeout=60s")
+    run("kubectl", "wait", "--for=condition=Ready", "nodes", "--all", "--timeout=120s")
+    run(
+        "kubectl",
+        "--namespace",
+        "kube-system",
+        "wait",
+        "--for=create",
+        "deployment/coredns",
+        "--timeout=120s",
+    )
+    run(
+        "kubectl",
+        "--namespace",
+        "kube-system",
+        "rollout",
+        "status",
+        "deployment/coredns",
+        "--timeout=120s",
+    )
 
 
 def build_and_load_images():

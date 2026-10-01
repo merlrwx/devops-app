@@ -52,6 +52,10 @@ check_dependency k3d
 check_dependency kubectl
 check_dependency docker
 check_dependency flux
+if ! docker info >/dev/null 2>&1; then
+  echo "Error: Docker daemon is unavailable. Start Docker and check your permissions." >&2
+  exit 1
+fi
 echo -e "${GREEN}All dependencies are installed.${NC}"
 echo ""
 
@@ -68,6 +72,8 @@ fi
 echo "Configuring kubectl to use the cluster..."
 kubectl config use-context k3d-"$CLUSTER_NAME"
 kubectl wait --for=condition=Ready nodes --all --timeout=120s
+kubectl --namespace kube-system wait --for=create deployment/coredns --timeout=120s
+kubectl --namespace kube-system rollout status deployment/coredns --timeout=120s
 
 # Build and load the images under the names used by the GitOps kustomization.
 echo "Building application images..."

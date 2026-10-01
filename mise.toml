@@ -3,7 +3,7 @@
 [tools]
 flux2 = "latest"
 gh = "latest"
-k3d = "latest"
+k3d = "5.9.0"
 k9s = "latest"
 kubectl = "latest"
 pre-commit = "latest"
@@ -52,3 +52,15 @@ run = "bash ./scripts/setup_gitops"
 [tasks.setup-cluster-gitops]
 description = "Create a local k3d cluster and bootstrap Flux"
 run = "bash ./scripts/setup_cluster_gitops"
+
+[tasks.k8s-status]
+description = "Show application deployments, Pods and services in the local cluster"
+run = "kubectl --context k3d-devops-app-cluster --namespace devops-app get deployments,pods,services"
+
+[tasks.k8s-logs]
+description = "Follow backend or frontend logs: mise run k8s-logs backend|frontend"
+run = "bash ./kubernetes/logs"
+
+[tasks.k8s-down-local]
+description = "Delete devops-app-cluster, including its application data and Flux installation"
+run = "bash ./kubernetes/down_local"

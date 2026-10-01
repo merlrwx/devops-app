@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ $# != 1 ]] || [[ "$1" != backend && "$1" != frontend ]]; then
+  echo "Usage: mise run k8s-logs backend|frontend" >&2
+  exit 1
+fi
+
+exec kubectl --context k3d-devops-app-cluster --namespace devops-app \
+  logs "deployment/dev-$1" --follow --tail=100 --all-containers=true

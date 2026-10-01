@@ -1,4 +1,4 @@
-"""Exercise sync guards and rendering without a Docker daemon or cluster."""
+"""Exercise local command guards and rendering without Docker or a cluster."""
 
 import json
 import os
@@ -55,6 +55,10 @@ elif name == "kubectl":
         command = args
         if command[:3] == ["config", "use-context", "k3d-devops-app-cluster"]:
             sys.exit(0)
+        if command[0] == "wait" or command[:2] == ["--namespace", "kube-system"]:
+            if mode == "readiness" or (mode == "dns" and "deployment/coredns" in command) or (mode == "dns-rollout" and "rollout" in command):
+                sys.exit("Cluster readiness failed")
+            sys.exit(0)
         if command[:2] == ["get", "services"]:
             sys.exit(0)
         if command[:2] == ["get", "svc"]:
@@ -84,11 +88,17 @@ class SyncLocalTests(unittest.TestCase):
         self.repo = self.directory / "repo with spaces"
         manifests = self.repo / "kubernetes" / "manifests"
         shutil.copytree(ROOT / "kubernetes" / "manifests", manifests)
-        for script in ("sync_local", "setup_cluster_local"):
+        for script in (
+            "sync_local",
+            "setup_cluster_local",
+            "setup_cluster_minimal",
+            "logs",
+            "down_local",
+        ):
             shutil.copy(ROOT / "kubernetes" / script, manifests.parent / script)
         self.bin = self.directory / "bin"
         self.bin.mkdir()
-        for name in ("docker", "k3d", "kubectl"):
+        for name in ("docker", "k3d", "kubectl", "flux"):
             tool = self.bin / name
             tool.write_text(FAKE_TOOL)
             tool.chmod(0o755)
@@ -123,6 +133,93 @@ class SyncLocalTests(unittest.TestCase):
         )
         self.assertEqual(list(self.work.iterdir()), [], "Temporary files leaked")
         return result, calls
+
+    def test_logs_validate_service_before_calling_kubectl(self):
+        for args in ((), ("other",), ("backend", "frontend"), ("--all",)):
+            with self.subTest(args=args):
+                self.log.write_text("")
+                result, calls = self.run_script("", "logs", *args)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("Usage:", result.stderr)
+                self.assertEqual(calls, [])
+        for service in ("backend", "frontend"):
+            self.log.write_text("")
+            result, calls = self.run_script("", "logs", service)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(
+                calls,
+                [
+                    [
+                        "kubectl",
+                        "--context",
+                        "k3d-devops-app-cluster",
+                        "--namespace",
+                        "devops-app",
+                        "logs",
+                        f"deployment/dev-{service}",
+                        "--follow",
+                        "--tail=100",
+                        "--all-containers=true",
+                    ]
+                ],
+            )
+
+    def test_down_only_deletes_exact_application_cluster(self):
+        result, calls = self.run_script(script="down_local")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(["k3d", "cluster", "delete", "devops-app-cluster"], calls)
+        self.log.write_text("")
+        result, calls = self.run_script(script="down_local")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("already absent", result.stdout)
+        self.assertEqual(calls, [["k3d", "cluster", "list", "--no-headers"]])
+
+    def test_down_stops_on_list_failure_or_arguments(self):
+        for mode, args in (("cluster-list", ()), ("", ("--all",))):
+            self.log.write_text("")
+            result, calls = self.run_script(mode, "down_local", *args)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertFalse(
+                any(call[:3] == ["k3d", "cluster", "delete"] for call in calls)
+            )
+
+    def test_readiness_failure_stops_setup_before_build(self):
+        for mode in ("readiness", "dns", "dns-rollout"):
+            self.log.write_text("")
+            result, calls = self.run_script(mode, "setup_cluster_local")
+            self.assertNotEqual(result.returncode, 0)
+            self.assertFalse(any(call[:2] == ["docker", "build"] for call in calls))
+
+    def test_minimal_setup_requires_usable_docker(self):
+        result, calls = self.run_script("daemon", "setup_cluster_minimal")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Docker daemon is unavailable", result.stderr)
+        self.assertEqual(calls, [["docker", "info"]])
+
+    def test_gitops_preflights_stop_before_build_or_bootstrap(self):
+        for mode in ("daemon", "readiness", "dns", "dns-rollout"):
+            with self.subTest(mode=mode):
+                self.log.write_text("")
+                result = subprocess.run(
+                    ["bash", str(ROOT / "scripts" / "setup_cluster_gitops")],
+                    env={
+                        **self.env,
+                        "FAIL_AT": mode,
+                        "DEVPOD_WORKSPACE_ID": "verification",
+                        "GITUSER": "unused",
+                        "GITOPS_REPO": "unused",
+                    },
+                    text=True,
+                    capture_output=True,
+                    check=False,
+                )
+                self.assertNotEqual(result.returncode, 0)
+                calls = [json.loads(line) for line in self.log.read_text().splitlines()]
+                self.assertFalse(any(call[:2] == ["docker", "build"] for call in calls))
+                self.assertFalse(any(call[0] == "flux" for call in calls))
+                if mode == "daemon":
+                    self.assertIn("Docker daemon is unavailable", result.stderr)
+                    self.assertEqual(calls, [["docker", "info"]])
 
     def test_invalid_cluster_name_fails_before_external_commands(self):
         result, calls = self.run_script("", "sync_local", "--all")

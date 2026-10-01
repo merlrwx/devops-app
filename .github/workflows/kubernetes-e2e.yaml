@@ -32,6 +32,7 @@ jobs:
 
   e2e:
     name: Kubernetes end-to-end tests
+    timeout-minutes: 15
     needs: check_paths
     if: needs.check_paths.outputs.should_run == 'true'
     runs-on: ubuntu-24.04
@@ -51,7 +52,7 @@ jobs:
         uses: azure/setup-kubectl@v4
 
       - name: Install k3d
-        run: curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | TAG=v5.8.3 bash
+        run: curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | TAG=v5.9.0 bash
 
       - name: Check local deployment guards and rendering
         run: uv run --locked --project ./kubernetes python -m unittest discover -s kubernetes/tests -v

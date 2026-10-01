@@ -52,7 +52,20 @@ uv run --locked --project src/frontend pytest tests/ -v --cov=timer_utils --cov-
 pre-commit run --all-files
 ```
 
-The E2E check is available as `mise run e2e-test`. Delete the local cluster when finished with `k3d cluster delete devops-app-cluster`.
+The E2E check is available as `mise run e2e-test`. Delete the local application cluster when finished with `mise run k8s-down-local`.
+
+### Local Kubernetes development loop
+
+```sh
+mise run k8s-setup-local     # create, reuse or recreate the cluster
+mise run k8s-sync-local     # deploy app or manifest edits
+mise run k8s-status
+mise run k8s-logs backend   # or frontend
+mise run k8s-down-local     # delete the application cluster and its data
+```
+
+Setup prints service URLs and port-forwarding instructions. See
+[the Kubernetes workflow](kubernetes/README.md) for details.
 
 ## Project build path
 

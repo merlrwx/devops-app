@@ -54,6 +54,40 @@ Startup allows approximately two minutes. Readiness runs every five seconds;
 liveness runs every ten seconds and restarts after three consecutive failures.
 HTTP probe timeouts are two seconds.
 
+## Operating the local cluster
+
+```sh
+mise run k8s-status
+mise run k8s-logs backend    # or frontend; Ctrl-C stops following
+mise run k8s-down-local
+```
+
+Rerun the logs command after a rollout replaces the Pod being followed.
+
+Status and logs explicitly target `k3d-devops-app-cluster` and namespace
+`devops-app`, regardless of your current kubectl context. Teardown deletes only
+`devops-app-cluster`, including application data and any installed Flux resources.
+An already absent cluster is a successful no-op. It leaves `devops-app-minimal`,
+images, deploy keys and repository files alone. Setup can still delete and recreate
+the application cluster interactively.
+
+## Reproducible cluster startup
+
+All setup modes and E2E use `k3d-config.yaml`, pinned to
+`rancher/k3s:v1.35.8-k3s1`. The minimal task overrides the name and topology to one
+server, no agents and no load balancer; it deploys no application workloads.
+Developer tools and E2E CI both use k3d 5.9.0.
+
+Setup checks Docker access before creating a cluster, then waits up to 120 seconds
+each for ready nodes, CoreDNS creation and its rollout. GitOps performs these checks
+before building images or bootstrapping Flux. Existing clusters retain their
+Kubernetes version until you explicitly recreate them.
+
+For upgrades, select a stable [k3s release](https://docs.k3s.io/release-notes/v1.35.X)
+compatible with [Flux's prerequisites](https://fluxcd.io/flux/installation/),
+update the image pin and run E2E against a disposable cluster. Keep the k3d tool
+pin and CI installer version aligned.
+
 ## Verification
 
 The existing `mise run e2e-test` workflow remains in place. It recreates
