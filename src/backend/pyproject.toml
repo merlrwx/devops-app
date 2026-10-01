@@ -1,6 +1,6 @@
 [project]
 name = "study-tracker-backend"
-version = "0.1.1"
+version = "0.2.0"
 description = "FastAPI backend for Pomodoro study sessions."
 readme = "README.md"
 authors = [{ name = "Jason Standen", email = "jason@merl.one" }]
