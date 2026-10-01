@@ -20,6 +20,19 @@ def test_health_check(client):
     assert response.json() == {"status": "ok"}
 
 
+def test_liveness_does_not_depend_on_database(client, monkeypatch):
+    def unavailable_database(*args, **kwargs):
+        raise RuntimeError("Database unavailable")
+
+    monkeypatch.setattr(main, "database", unavailable_database)
+
+    response = client.get("/live")
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
+    with pytest.raises(RuntimeError, match="Database unavailable"):
+        client.get("/health")
+
+
 def test_timer_starts_idle(client):
     response = client.get("/api/timer")
 

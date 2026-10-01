@@ -169,6 +169,11 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(title="Pomodoro API", version="1.0.0", lifespan=lifespan)
 
 
+@app.get("/live")
+def live() -> dict[str, str]:
+    return {"status": "ok"}
+
+
 @app.get("/health")
 def health() -> dict[str, str]:
     with database() as connection:

@@ -18,6 +18,26 @@ spec:
           image: backend:latest
           ports:
             - containerPort: 8000
+          startupProbe:
+            httpGet:
+              path: /live
+              port: 8000
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 24
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            periodSeconds: 5
+            timeoutSeconds: 2
+          livenessProbe:
+            httpGet:
+              path: /live
+              port: 8000
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
           resources:
             limits:
               memory: "512Mi"
