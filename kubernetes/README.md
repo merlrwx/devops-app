@@ -59,13 +59,12 @@ HTTP probe timeouts are two seconds.
 ```sh
 mise run k8s-status
 mise run k8s-logs backend    # or frontend; Ctrl-C stops following
-mise run k8s-console
 mise run k8s-down-local
 ```
 
 Rerun the logs command after a rollout replaces the Pod being followed.
 
-Status, logs and k9s explicitly target `k3d-devops-app-cluster` and namespace
+Status and logs explicitly target `k3d-devops-app-cluster` and namespace
 `devops-app`, regardless of your current kubectl context. Teardown deletes only
 `devops-app-cluster`, including application data and any installed Flux resources.
 An already absent cluster is a successful no-op. It leaves `devops-app-minimal`,

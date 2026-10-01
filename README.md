@@ -54,27 +54,18 @@ pre-commit run --all-files
 
 The E2E check is available as `mise run e2e-test`. Delete the local application cluster when finished with `mise run k8s-down-local`.
 
-### Native development with reload
-
-Run these commands in separate terminals:
+### Local Kubernetes development loop
 
 ```sh
-mise run dev-backend
-mise run dev-frontend
+mise run k8s-setup-local     # create, reuse or recreate the cluster
+mise run k8s-sync-local     # deploy app or manifest edits
+mise run k8s-status
+mise run k8s-logs backend   # or frontend
+mise run k8s-down-local     # delete the application cluster and its data
 ```
 
-Open <http://127.0.0.1:8501>; the API is at <http://127.0.0.1:8000>.
-Both tasks use their service directory and locked uv dependencies. Backend reload
-watches only `src/backend/src/backend`; SQLite defaults to
-`src/backend/data/pomodoro.sqlite3`, outside that watch directory. Set
-`DATABASE_PATH` to choose another database. Streamlit automatically reruns active
-sessions after frontend edits and uses the local API. Ctrl-C stops each server.
-These commands run without Docker or Kubernetes.
-
-For the local application cluster, `mise run k8s-status`, `mise run k8s-logs backend`
-(or `frontend`), and `mise run k8s-console` provide status, logs and k9s. Use
-`mise run k8s-down-local` to delete that cluster and its data. See
-[the Kubernetes workflow](kubernetes/README.md) for startup checks and version pins.
+Setup prints service URLs and port-forwarding instructions. See
+[the Kubernetes workflow](kubernetes/README.md) for details.
 
 ## Project build path
 

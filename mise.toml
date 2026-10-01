@@ -61,21 +61,6 @@ run = "kubectl --context k3d-devops-app-cluster --namespace devops-app get deplo
 description = "Follow backend or frontend logs: mise run k8s-logs backend|frontend"
 run = "bash ./kubernetes/logs"
 
-[tasks.k8s-console]
-description = "Open k9s in the local application's namespace"
-run = "k9s --context k3d-devops-app-cluster --namespace devops-app"
-
 [tasks.k8s-down-local]
 description = "Delete devops-app-cluster, including its application data and Flux installation"
 run = "bash ./kubernetes/down_local"
-
-[tasks.dev-backend]
-description = "Run the backend on localhost:8000 with source reload"
-dir = "{{config_root}}/src/backend"
-run = "uv run --locked uvicorn backend.main:app --reload --reload-dir src/backend --host 127.0.0.1 --port 8000"
-
-[tasks.dev-frontend]
-description = "Run Streamlit on localhost:8501 with automatic reruns after edits"
-dir = "{{config_root}}/src/frontend"
-env = { BACKEND_URL = "http://127.0.0.1:8000" }
-run = "uv run --locked streamlit run app.py --server.address 127.0.0.1 --server.port 8501 --server.runOnSave true --server.headless true"

@@ -224,6 +224,3 @@ dev-keys/
 
 # Local implementation plans
 /plans/
-
-# SQLite state created by native backend development
-/src/backend/data/
