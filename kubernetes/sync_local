@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BASE_DIR="$(dirname "$SCRIPT_DIR")"
+CLUSTER_NAME="${1:-devops-app-cluster}"
+CONTEXT="k3d-$CLUSTER_NAME"
+
+if [[ $# -gt 1 || ! "$CLUSTER_NAME" =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
+  echo "Usage: $0 [k3d-cluster-name]" >&2
+  exit 1
+fi
+
+for dependency in docker k3d kubectl; do
+  if ! command -v "$dependency" >/dev/null 2>&1; then
+    echo "Error: $dependency is not installed." >&2
+    exit 1
+  fi
+done
+
+if ! docker info >/dev/null 2>&1; then
+  echo "Error: Docker daemon is unavailable. Start Docker and check your permissions." >&2
+  exit 1
+fi
+
+clusters=$(k3d cluster list)
+if ! awk -v name="$CLUSTER_NAME" '$1 == name { found = 1 } END { exit !found }' <<< "$clusters"; then
+  echo "Error: Cluster $CLUSTER_NAME does not exist. Run mise run k8s-setup-local first." >&2
+  exit 1
+fi
+
+flux_namespace=$(kubectl --context "$CONTEXT" get namespace flux-system --ignore-not-found -o name)
+if [[ -n "$flux_namespace" ]]; then
+  echo "Error: $CLUSTER_NAME contains flux-system. Use the GitOps workflow instead of local sync." >&2
+  exit 1
+fi
+
+work_dir=$(mktemp -d)
+trap '
+  if [[ -n "${build_tag:-}" ]]; then
+    docker image rm "$build_tag" >/dev/null 2>&1 || true
+  fi
+  rm -rf "$work_dir"
+' EXIT
+
+# Render first so the temporary overlay needs no paths outside its own directory.
+kubectl --context "$CONTEXT" kustomize "$SCRIPT_DIR/manifests/dev" > "$work_dir/resources.yaml"
+cat > "$work_dir/kustomization.yaml" <<'YAML'
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - resources.yaml
+images:
+YAML
+
+for app in backend frontend; do
+  echo "Building $app..."
+  # Local-only images need stable IDs; timestamped provenance would change every build.
+  build_tag="$app:local-build-${work_dir##*/}"
+  docker build --provenance=false --tag "$build_tag" --file "$BASE_DIR/src/$app/Dockerfile" "$BASE_DIR/src/$app"
+  image_id=$(docker image inspect "$build_tag" --format '{{.Id}}')
+  tag="local-${image_id#sha256:}"
+  docker tag "$image_id" "$app:$tag"
+  docker image rm "$build_tag" >/dev/null
+  build_tag=""
+  k3d image import "$app:$tag" --cluster "$CLUSTER_NAME" --mode direct
+  cat >> "$work_dir/kustomization.yaml" <<YAML
+  - name: $app
+    newTag: $tag
+YAML
+done
+
+kubectl --context "$CONTEXT" kustomize "$work_dir" > "$work_dir/deployment.yaml"
+kubectl --context "$CONTEXT" apply -f "$work_dir/deployment.yaml"
+for app in backend frontend; do
+  kubectl --context "$CONTEXT" rollout status "deployment/dev-$app" -n devops-app --timeout=180s
+done
